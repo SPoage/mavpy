@@ -3,7 +3,7 @@ from os import getcwd
 from mavpy.base import Maven
 
 
-MAVEN_VERSION_REGEX = re.compile(r'^Apache Maven (?P<value>3\.\d+\.\d+)$')
+MAVEN_VERSION_REGEX = re.compile(r'^Apache Maven (?P<value>3\.\d+\.\d+) \(.+\)$')
 
 
 class Maven3(Maven):

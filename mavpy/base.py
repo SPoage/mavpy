@@ -1,7 +1,7 @@
+import os
 import re
-from os import getcwd
 from contextlib import contextmanager
-from mavpy.system import run, which
+from mavpy.system import run, which, PLATFORM_NAME
 from kershaw.lang import ephemeral_value
 
 
@@ -26,6 +26,20 @@ LIFECYCLES = {'default': ['validate', 'initialize', 'generate-sources', 'process
 ALL_PHASES = sorted(LIFECYCLES['default'] + LIFECYCLES['site'] + LIFECYCLES['clean'])
 
 
+def locate_maven():
+    try:
+        path = which('mvn.cmd' if PLATFORM_NAME == 'Windows' else 'mvn')
+    except FileNotFoundError:
+        if 'M2_HOME' in os.environ:
+            path = os.environ['M2_HOME']
+        elif 'MAVEN_HOME' in os.environ:
+            path = os.environ['MAVEN_HOME']
+        else:
+            raise
+        path = os.path.join(path, 'bin', 'mvn')
+    return path
+
+
 def is_phase(target):
     return str(target).lower() in ALL_PHASES
 
@@ -34,20 +48,13 @@ def is_goal(target):
     return not is_phase(target)
 
 
-class MavenError(BaseException):
-    pass
-
-
-class MavenCommandBuilderError(MavenError):
-    pass
-
-
-def autodetect_version(maven_path=None, project_path=getcwd(), require_version=True):
+def autodetect_version(maven_path=None, project_path=os.getcwd(), require_version=True):
     from mavpy.maven2 import Maven2
     from mavpy.maven3 import Maven3
     maven_versions = [Maven2, Maven3]
     if maven_path is None:
-        maven_path = which('mvn')
+        maven_path = locate_maven()
+        print(maven_path)
     exit_code, output = run([maven_path, '-v'])
     for version in maven_versions:
         if version.parse_version_output(output) is not None:
@@ -58,6 +65,14 @@ def autodetect_version(maven_path=None, project_path=getcwd(), require_version=T
         raise MavenError("Could not determine Maven version for executable at path: " + maven_path)
     else:
         raise MavenError("Could not parse Maven output - unknown error.")
+
+
+class MavenError(BaseException):
+    pass
+
+
+class MavenCommandBuilderError(MavenError):
+    pass
 
 
 class MavenCommandContext:
@@ -132,7 +147,7 @@ class MavenCommandContext:
 
 
 class Maven:
-    def __init__(self, maven_path, project_path=getcwd()):
+    def __init__(self, maven_path, project_path=os.getcwd()):
         """
         :type maven_path: str
         :type project_path: str
