@@ -95,9 +95,9 @@ class MavenCommandContext:
             # not sure how to handle this yet. for now, permit it but don't do what is expected
             return self
         duplicate_obj = MavenCommandContext(self.maven)
-        duplicate_obj.options = self.options
-        duplicate_obj.targets = self.targets
-        duplicate_obj.parameters = self.parameters
+        duplicate_obj.options = self.options.copy()
+        duplicate_obj.targets = self.targets.copy()
+        duplicate_obj.parameters = self.parameters.copy()
         return duplicate_obj
 
     def set_parameter(self, param_name, value):
@@ -131,16 +131,19 @@ class MavenCommandContext:
         if len(self.parameters):
             parameter_strings = []
             for parameter, value in self.parameters.items():
-                outer_quote_type = '"'    # double quote
-                quoted_value_match = QUOTED_STRING_REGEX.match(value)
-                if quoted_value_match is not None:
-                    outer_quote_type = quoted_value_match.group('quote')
-                    value = quoted_value_match.group('value')
-                needs_quotes_match = NEEDS_QUOTES_REGEX.match(value)
-                if needs_quotes_match is not None:
-                    value = ESCAPE_QUOTES_REGEX[outer_quote_type].sub('\g<quote>', value)
-                    value = outer_quote_type + value + outer_quote_type
-                parameter_strings.append('-D%s=%s' % (parameter, value))
+                param_string = '-D%s' % parameter
+                if value is not None:
+                    outer_quote_type = '"'    # double quote
+                    quoted_value_match = QUOTED_STRING_REGEX.match(value)
+                    if quoted_value_match is not None:
+                        outer_quote_type = quoted_value_match.group('quote')
+                        value = quoted_value_match.group('value')
+                    needs_quotes_match = NEEDS_QUOTES_REGEX.match(value)
+                    if needs_quotes_match is not None:
+                        value = ESCAPE_QUOTES_REGEX[outer_quote_type].sub('\g<quote>', value)
+                        value = outer_quote_type + value + outer_quote_type
+                    param_string += '=%s' % value
+                parameter_strings.append(param_string)
             command_parts.append(' '.join(parameter_strings))
         return command_parts
 
