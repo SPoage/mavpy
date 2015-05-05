@@ -11,7 +11,7 @@ QUOTED_STRING_REGEX = re.compile(r'^(?P<quote>["\'])(?P<value>.*)(?P=quote)$', r
 NEEDS_QUOTES_REGEX = re.compile(r'[;&%/!#<>\|\s\n\(\)\{\}\[\]\*\?\$\|\'\"\\]')
 ESCAPE_QUOTES_REGEX = {"'": re.compile(r'(?P<quote>[^\\][\'])'),  # single quote
                        '"': re.compile(r'(?P<quote>[^\\]["])')}   # double quote
-PARAM_NAME_REPLACE_REGEX = re.compile(r'[_][^_]')
+PARAM_NAME_REPLACE_REGEX = re.compile(r'(?P<lead>[^_])_')
 
 
 # no programmatic way to get these
@@ -100,6 +100,10 @@ class MavenCommandContext:
         duplicate_obj.parameters = self.parameters
         return duplicate_obj
 
+    def set_parameter(self, param_name, value):
+        parameter_name = PARAM_NAME_REPLACE_REGEX.sub('\g<lead>.', param_name).replace('__', '_')
+        self.parameters[parameter_name] = value
+
     def finalize(self):
         if self.cmd_finalized:
             raise MavenCommandBuilderError("Command object already finalized!")
@@ -112,7 +116,7 @@ class MavenCommandContext:
                     needs_project_path_option = False
                     break
         if needs_project_path_option and self.maven.project_dir is not None:
-            self.options.append('--file %s' % self.maven.project_dir)
+            self.options.append('--file %s' % os.path.join(self.maven.project_dir, 'pom.xml'))
         self.cmd_parts = self.build_cmd_parts()
         self.cmd_finalized = True
         return self
@@ -120,9 +124,10 @@ class MavenCommandContext:
     def build_cmd_parts(self):
         command_parts = [self.maven.bin_path]
         if len(self.options) > 0:
-            command_parts.append(' '.join(self.options))
+            for option in self.options:
+                command_parts.extend(option.split(' ', 1) if ' ' in option else [option])
         if len(self.targets):
-            command_parts.append(' '.join(self.targets))
+            command_parts.extend(self.targets)
         if len(self.parameters):
             parameter_strings = []
             for parameter, value in self.parameters.items():
@@ -142,7 +147,7 @@ class MavenCommandContext:
     def execute(self):
         if not self.cmd_finalized:
             self.finalize()
-        run(self.cmd_parts, cwd=self.maven.project_dir)
+        self.exit_code, self.output = run(self.cmd_parts, cwd=self.maven.project_dir)
         self.maven.results_history.append(self)
         return self
 
@@ -163,7 +168,7 @@ class Maven:
         with self.property_access():
             self.bin_path = maven_path
             self.project_dir = project_path
-            self.next_cmd = None
+            self.next_cmd = MavenCommandContext(self)
             self.results_history = []
             self.properties_accessible = False
 
@@ -197,15 +202,15 @@ class Maven:
             if hasattr(self, key) and properties_accessible:
                 super().__setattr__(key, value)
             else:
-                parameter_name = PARAM_NAME_REPLACE_REGEX.sub('.', key).replace('__', '_')
                 if self.next_cmd is None:
                     self.next_cmd = MavenCommandContext(self)
-                self.next_cmd.parameters[parameter_name] = value
+                self.next_cmd.set_parameter(key, value)
 
     def __call__(self, *targets, **parameters):
         tmp_context = self.next_cmd.duplicate()
-        tmp_context.parameters.update(parameters)
-        tmp_context.targets.append(targets)
+        for param, value in parameters.items():
+            tmp_context.set_parameter(param, value)
+        tmp_context.targets.extend(targets)
         tmp_context.execute()
         return tmp_context
 
@@ -243,7 +248,7 @@ class Maven:
 
     @contextmanager
     def property_access(self):
-        with ephemeral_value(self, 'properties_accessible', True):
+        with ephemeral_value(self, 'properties_accessible', True, False):
             yield
 
     @classmethod

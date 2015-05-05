@@ -28,6 +28,7 @@ def which(file_name):
 
 
 def run(cmd_parts, **popen_kwargs):
+    print('$>  %s' % ' '.join(cmd_parts))
     process = Popen(cmd_parts, stdout=PIPE, stderr=STDOUT, env=os.environ.copy(), **popen_kwargs)
     output, _ = process.communicate()
     exit_code = process.wait()
