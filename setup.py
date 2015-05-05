@@ -16,5 +16,6 @@ setup(name='mavpy',
                    'Topic :: Software Development :: Libraries'],
       url='https://github.com/SPoage/mavpy',
       author='Shane Poage',
+      author_email='SPoage@users.noreply.github.com',
       packages=find_packages(),
       install_requires=['kershaw'])

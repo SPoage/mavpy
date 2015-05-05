@@ -11,6 +11,7 @@ QUOTED_STRING_REGEX = re.compile(r'^(?P<quote>["\'])(?P<value>.*)(?P=quote)$', r
 NEEDS_QUOTES_REGEX = re.compile(r'[;&%/!#<>\|\s\n\(\)\{\}\[\]\*\?\$\|\'\"\\]')
 ESCAPE_QUOTES_REGEX = {"'": re.compile(r'(?P<quote>[^\\][\'])'),  # single quote
                        '"': re.compile(r'(?P<quote>[^\\]["])')}   # double quote
+PARAM_NAME_REPLACE_REGEX = re.compile(r'[_][^_]')
 
 
 # no programmatic way to get these
@@ -196,9 +197,10 @@ class Maven:
             if hasattr(self, key) and properties_accessible:
                 super().__setattr__(key, value)
             else:
+                parameter_name = PARAM_NAME_REPLACE_REGEX.sub('.', key).replace('__', '_')
                 if self.next_cmd is None:
                     self.next_cmd = MavenCommandContext(self)
-                self.next_cmd.parameters[key] = value
+                self.next_cmd.parameters[parameter_name] = value
 
     def __call__(self, *targets, **parameters):
         tmp_context = self.next_cmd.duplicate()
